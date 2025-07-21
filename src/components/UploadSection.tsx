@@ -8,24 +8,37 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UploadSectionProps {
   onBack: () => void;
-  onComplete: () => void;
+  onComplete: (analysisResults: any[]) => void;
+}
+
+interface UploadedContent {
+  content: string;
+  type: 'file' | 'youtube' | 'notes';
+  name: string;
 }
 
 export const UploadSection = ({ onBack, onComplete }: UploadSectionProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [uploadedContent, setUploadedContent] = useState<UploadedContent[]>([]);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
-      const fileNames = Array.from(files).map(file => file.name);
-      setUploadedFiles(prev => [...prev, ...fileNames]);
+      for (const file of Array.from(files)) {
+        const text = await file.text();
+        setUploadedContent(prev => [...prev, {
+          content: text,
+          type: 'file',
+          name: file.name
+        }]);
+      }
       toast({
         title: "Files uploaded successfully!",
         description: `${files.length} file(s) ready for processing.`,
@@ -36,7 +49,11 @@ export const UploadSection = ({ onBack, onComplete }: UploadSectionProps) => {
   const handleYouTubeSubmit = () => {
     if (!youtubeUrl.trim()) return;
     
-    setUploadedFiles(prev => [...prev, `YouTube: ${youtubeUrl}`]);
+    setUploadedContent(prev => [...prev, {
+      content: youtubeUrl,
+      type: 'youtube',
+      name: `YouTube: ${youtubeUrl}`
+    }]);
     setYoutubeUrl("");
     toast({
       title: "YouTube link added!",
@@ -47,7 +64,11 @@ export const UploadSection = ({ onBack, onComplete }: UploadSectionProps) => {
   const handleNotesSubmit = () => {
     if (!notes.trim()) return;
     
-    setUploadedFiles(prev => [...prev, "Text Notes"]);
+    setUploadedContent(prev => [...prev, {
+      content: notes,
+      type: 'notes',
+      name: "Text Notes"
+    }]);
     setNotes("");
     toast({
       title: "Notes added!",
@@ -56,7 +77,7 @@ export const UploadSection = ({ onBack, onComplete }: UploadSectionProps) => {
   };
 
   const processContent = async () => {
-    if (uploadedFiles.length === 0) {
+    if (uploadedContent.length === 0) {
       toast({
         title: "No content to process",
         description: "Please upload files, add YouTube links, or enter notes first.",
@@ -67,16 +88,54 @@ export const UploadSection = ({ onBack, onComplete }: UploadSectionProps) => {
 
     setIsProcessing(true);
     
-    // Simulate AI processing
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    toast({
-      title: "Content processed successfully! ✨",
-      description: "Your study materials are ready in the dashboard.",
-    });
-    
-    setIsProcessing(false);
-    onComplete();
+    try {
+      const analysisResults = [];
+      
+      for (const item of uploadedContent) {
+        toast({
+          title: "Processing content...",
+          description: `Analyzing: ${item.name}`,
+        });
+
+        const { data, error } = await supabase.functions.invoke('analyze-content', {
+          body: {
+            content: item.content,
+            type: item.type
+          }
+        });
+
+        if (error) {
+          console.error('Error analyzing content:', error);
+          toast({
+            title: "Analysis failed",
+            description: `Failed to analyze: ${item.name}`,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        analysisResults.push({
+          ...data,
+          originalName: item.name
+        });
+      }
+      
+      toast({
+        title: "Content processed successfully! ✨",
+        description: "Your study materials are ready in the dashboard.",
+      });
+      
+      onComplete(analysisResults);
+    } catch (error) {
+      console.error('Processing error:', error);
+      toast({
+        title: "Processing failed",
+        description: "There was an error processing your content.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -213,13 +272,13 @@ export const UploadSection = ({ onBack, onComplete }: UploadSectionProps) => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {uploadedFiles.length === 0 ? (
+                    {uploadedContent.length === 0 ? (
                       <p className="text-muted-foreground text-sm">No content uploaded yet</p>
                     ) : (
-                      uploadedFiles.map((file, index) => (
+                      uploadedContent.map((item, index) => (
                         <div key={index} className="flex items-center gap-2 p-2 bg-accent/50 rounded-md">
                           <CheckCircle className="h-4 w-4 text-success" />
-                          <span className="text-sm truncate">{file}</span>
+                          <span className="text-sm truncate">{item.name}</span>
                         </div>
                       ))
                     )}
@@ -237,7 +296,7 @@ export const UploadSection = ({ onBack, onComplete }: UploadSectionProps) => {
                     variant="secondary" 
                     className="w-full" 
                     onClick={processContent}
-                    disabled={isProcessing || uploadedFiles.length === 0}
+                    disabled={isProcessing || uploadedContent.length === 0}
                   >
                     {isProcessing ? (
                       <>

@@ -9,6 +9,7 @@ import { FeatureCard } from "@/components/FeatureCard";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<'landing' | 'upload' | 'dashboard'>('landing');
+  const [analysisResults, setAnalysisResults] = useState<any[]>([]);
 
   const features = [
     {
@@ -44,11 +45,20 @@ const Index = () => {
   ];
 
   if (currentView === 'upload') {
-    return <UploadSection onBack={() => setCurrentView('landing')} onComplete={() => setCurrentView('dashboard')} />;
+    return <UploadSection 
+      onBack={() => setCurrentView('landing')} 
+      onComplete={(results) => {
+        setAnalysisResults(results);
+        setCurrentView('dashboard');
+      }} 
+    />;
   }
 
   if (currentView === 'dashboard') {
-    return <StudyDashboard onBack={() => setCurrentView('landing')} />;
+    return <StudyDashboard 
+      onBack={() => setCurrentView('landing')} 
+      analysisResults={analysisResults}
+    />;
   }
 
   return (

@@ -8,9 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface StudyDashboardProps {
   onBack: () => void;
+  analysisResults?: any[];
 }
 
-export const StudyDashboard = ({ onBack }: StudyDashboardProps) => {
+export const StudyDashboard = ({ onBack, analysisResults = [] }: StudyDashboardProps) => {
   const [currentFlashcard, setCurrentFlashcard] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
 
